@@ -1,2 +1,0 @@
-spring.application.name=test-containers-usach
-spring.cloud.gcp.project-id=your-gcp-project-id
