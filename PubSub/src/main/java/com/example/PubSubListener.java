@@ -18,41 +18,57 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+/**
+ * Handles incoming Pub/Sub messages, integrating with Spring Integration.
+ */
 @Component
-@Slf4j
+@Slf4j // Enables logging for this class.
 public class PubSubListener {
 
-    private final String subscriptionName = "example-subscription";
+    private final String subscriptionName = "example-subscription"; // The Pub/Sub subscription name to listen to.
 
-    @Getter
-    private final BlockingQueue<String> receivedMessages = new LinkedBlockingQueue<>();
+    @Getter // Allows external access (e.g., tests) to received messages.
+    private final BlockingQueue<String> receivedMessages = new LinkedBlockingQueue<>(); // Stores messages as they arrive.
 
+
+    /**
+     * Defines the Spring Integration channel for incoming Pub/Sub messages.
+     */
     @Bean
     public MessageChannel pubsubInputChannel() {
-        return new DirectChannel();
+        return new DirectChannel(); // A direct channel processes messages synchronously.
     }
 
+    /**
+     * Configures the inbound adapter to pull messages from Pub/Sub and route them to `pubsubInputChannel`.
+     * Uses **manual acknowledgment mode** for explicit control over message acknowledgment.
+     */
     @Bean
     public PubSubInboundChannelAdapter messageChannelAdapter(
-            @Qualifier("pubsubInputChannel") MessageChannel inputChannel,
-            PubSubTemplate pubSubTemplate) {
+            @Qualifier("pubsubInputChannel") MessageChannel inputChannel, // Injects the defined input channel.
+            PubSubTemplate pubSubTemplate) { // Injects the core Pub/Sub client.
         PubSubInboundChannelAdapter adapter = new PubSubInboundChannelAdapter(pubSubTemplate, subscriptionName);
         adapter.setOutputChannel(inputChannel);
-        adapter.setAckMode(AckMode.MANUAL); // Manual ack for testing
+        adapter.setAckMode(AckMode.MANUAL);
         return adapter;
     }
 
+    /**
+     * Processes messages arriving at `pubsubInputChannel`. Extracts payload, logs, stores, and acknowledges the message.
+     */
     @Bean
-    @ServiceActivator(inputChannel = "pubsubInputChannel")
+    @ServiceActivator(inputChannel = "pubsubInputChannel") // Binds this method to handle messages from 'pubsubInputChannel'.
     public MessageHandler receiveMessage() {
         return message -> {
             String payloadMessage = new String((byte[]) message.getPayload());
             log.info("Message arrived! Payload: " + payloadMessage);
+
+            // Retrieves the original Pub/Sub message to acknowledge it after processing.
             BasicAcknowledgeablePubsubMessage originalMessage =
                     message.getHeaders().get(GcpPubSubHeaders.ORIGINAL_MESSAGE, BasicAcknowledgeablePubsubMessage.class);
-            receivedMessages.offer(payloadMessage);// Add to queue for testing
-            //some very important method that does something
-            originalMessage.ack();
+
+            receivedMessages.offer(payloadMessage); // Adds the message payload to a queue for consumption/testing.
+            originalMessage.ack(); // Acknowledges the message to Pub/Sub, preventing redelivery.
         };
     }
 }

@@ -14,83 +14,75 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ContextConfiguration;
 
-import org.springframework.test.context.bean.override.mockito.MockitoBean; // Specific import for MockitoBean
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-import static org.mockito.Mockito.*; // Static imports for Mockito methods
+import static org.mockito.Mockito.*;
 
 /**
- * Unit tests for {@link PubSubService} using Mockito.
- * This class isolates the service from actual Google Cloud Pub/Sub connections.
+ * Unit tests for {@link PubSubService}, isolating it from actual Google Cloud Pub/Sub
+ * by using Mockito to mock its dependencies.
  */
-@SpringBootTest // Loads a Spring Boot context for testing.
-// Configures the test context to use only TestConfig, avoiding full app scan.
-@ContextConfiguration(classes = PubSubServiceMockTest.TestConfig.class)
-// Excludes GCP Pub/Sub auto-configurations to prevent real connection attempts.
+@SpringBootTest // Boots a Spring application context for testing.
+@ContextConfiguration(classes = PubSubServiceMockTest.TestConfig.class) // Uses a minimal test configuration.
+// Excludes auto-configurations related to GCP Pub/Sub to prevent real connections.
 @EnableAutoConfiguration(exclude = {
-        GcpPubSubAutoConfiguration.class, // Prevents Pub/Sub client setup.
-        GcpContextAutoConfiguration.class, // Prevents core GCP context (e.g., project ID).
+        GcpPubSubAutoConfiguration.class, // Prevents auto-configuration of Pub/Sub client.
+        GcpContextAutoConfiguration.class, // Prevents general GCP context auto-configuration.
 })
 class PubSubServiceMockTest {
 
-    // The expected Pub/Sub topic name.
-    private static final String TOPIC_NAME = "example-topic";
+    private static final String TOPIC_NAME = "example-topic"; // The expected topic name used by the service.
 
-    // Mocks the PubSubTemplate to control its behavior and verify calls.
-    @MockitoBean
+    @MockitoBean // Replaces the real PubSubTemplate bean with a Mockito mock.
     private PubSubTemplate pubSubTemplate;
 
-    // Mocks the PubSubSubscriberTemplate to avoid real subscriber setup.
-    @MockitoBean
+    @MockitoBean // Mocks the subscriber template; it's not directly used in PubSubService but might be in other tests.
     private PubSubSubscriberTemplate pubSubSubscriberTemplate;
 
-    // Injects the actual PubSubService instance; it will receive the mocks.
-    @Autowired
+    @Autowired // Injects the PubSubService into the test class; it will receive the mocked dependencies.
     private PubSubService pubSubService;
 
     /**
-     * Sets up a clean state before each test.
+     * Resets mocks before each test to ensure a clean state and prevent test interference.
      */
     @BeforeEach
     void setUp() {
-        // Resets all mocks to clear previous interactions/stubbings.
-        reset(pubSubTemplate, pubSubSubscriberTemplate);
+        reset(pubSubTemplate, pubSubSubscriberTemplate); // Clears previous interactions and stubbings.
     }
 
     /**
-     * Verifies that PubSubService doesn't call publish methods if its internal logic prevents it.
+     * Verifies that no publish operations are called on the mocked PubSubTemplate by default.
+     * This acts as a sanity check.
      */
     @Test
     void testPublishMessage_shouldNotCallPublishIfLogicPrevents() {
-        // Confirms no methods were called on the mocked PubSubTemplate.
-        verifyNoInteractions(pubSubTemplate);
-        // Confirms no methods were called on the mocked PubSubSubscriberTemplate.
-        verifyNoInteractions(pubSubSubscriberTemplate);
+        verifyNoInteractions(pubSubTemplate); // Asserts no methods were called on pubSubTemplate initially.
+        verifyNoInteractions(pubSubSubscriberTemplate); // Asserts no methods were called on pubSubSubscriberTemplate initially.
     }
 
     /**
-     * Tests the message publishing process: service calls template, message is transformed.
+     * Tests the core message publishing functionality: verifies the service transforms the message
+     * and calls the `pubSubTemplate.publish` method with the correct arguments.
      */
     @Test
     void testPubSubMessageFlow() {
-        String message = "test message"; // Input message.
-        String expectedPublishedMessage = message.toUpperCase(); // Expected message after transformation.
+        String message = "test message";
+        String expectedPublishedMessage = message.toUpperCase(); // Expects message to be uppercased by service.
 
-        // Calls the service method to be tested.
-        pubSubService.publishMessage(message);
+        pubSubService.publishMessage(message); // Call the service method.
 
-        // Verifies 'publish' was called exactly once on the mock, with precise arguments.
+        // Verifies that the publish method was called exactly once with the expected topic and transformed message.
         verify(pubSubTemplate, times(1)).publish(TOPIC_NAME, expectedPublishedMessage);
-        // Ensures no other unexpected calls were made to the mock.
-        verifyNoMoreInteractions(pubSubTemplate);
+        verifyNoMoreInteractions(pubSubTemplate); // Ensures no other methods were called on the template.
     }
 
     /**
-     * Defines the minimal Spring context for this test class.
+     * Defines the minimal Spring context for this unit test.
+     * It only imports `PubSubService` as its dependencies (`PubSubTemplate`) are mocked.
      */
     @Configuration
-    // Imports PubSubService into the test context. Its dependencies (the mocks) will be fulfilled.
-    @Import({PubSubService.class})
+    @Import({PubSubService.class}) // Imports the service under test.
     static class TestConfig {
-        // No additional configurations needed here.
+        // No additional beans are defined here; mocks handle the dependencies.
     }
 }

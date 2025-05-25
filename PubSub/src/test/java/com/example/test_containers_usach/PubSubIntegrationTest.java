@@ -40,6 +40,12 @@ import java.util.stream.StreamSupport;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+/**
+ * **Integration Test** for the Pub/Sub message flow using a **Testcontainers-managed Pub/Sub Emulator**.
+ *
+ * This test spins up a real Pub/Sub emulator in a Docker container, configures Spring to connect,
+ * and verifies end-to-end message publishing and receiving.
+ */
 @SpringBootTest
 @Testcontainers
 @EnableAutoConfiguration(exclude = {
@@ -53,7 +59,7 @@ class PubSubIntegrationTest {
     private static final String TOPIC_NAME = "example-topic";
     private static final String SUBSCRIPTION_NAME = "example-subscription";
 
-    @Container
+    @Container // Testcontainers manages this Docker container.
     public static PubSubEmulatorContainer pubsubEmulator =
             new PubSubEmulatorContainer(DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:388.0.0-emulators"));
 
@@ -66,11 +72,14 @@ class PubSubIntegrationTest {
     @Autowired
     private PubSubListener pubSubListener;
 
+    /**
+     * Initializes the Pub/Sub emulator and sets up topics/subscriptions once before all tests.
+     */
     @BeforeAll
     static void setupPubSubEmulator() throws IOException {
         ManagedChannel channel =
                 ManagedChannelBuilder.forTarget("dns:///" + pubsubEmulator.getEmulatorEndpoint())
-                        .usePlaintext()
+                        .usePlaintext() // Emulator uses unencrypted communication.
                         .build();
 
         FixedTransportChannelProvider channelProvider = FixedTransportChannelProvider.create(GrpcTransportChannel.create(channel));
@@ -89,18 +98,23 @@ class PubSubIntegrationTest {
 
         ProjectTopicName topicProjectName = ProjectTopicName.of(PROJECT_ID, TOPIC_NAME);
 
+        // Creates the topic if it doesn't already exist.
         if (StreamSupport.stream(topicAdminClient.listTopics(ProjectName.of(PROJECT_ID)).iterateAll().spliterator(), false)
                 .noneMatch(topic -> topic.getName().equals(topicProjectName.toString()))) {
             topicAdminClient.createTopic(topicProjectName);
         }
 
         ProjectSubscriptionName subscriptionProjectName = ProjectSubscriptionName.of(PROJECT_ID, SUBSCRIPTION_NAME);
+        // Creates the subscription if it doesn't already exist.
         if (StreamSupport.stream(subscriptionAdminClient.listSubscriptions(ProjectName.of(PROJECT_ID)).iterateAll().spliterator(), false)
                 .noneMatch(sub -> sub.getName().equals(subscriptionProjectName.toString()))) {
             subscriptionAdminClient.createSubscription(subscriptionProjectName, topicProjectName, PushConfig.getDefaultInstance(), 0);
         }
     }
 
+    /**
+     * Cleans up Pub/Sub admin clients after all tests are finished.
+     */
     @AfterAll
     static void cleanupPubSubEmulator() {
         if (topicAdminClient != null) {
@@ -111,17 +125,24 @@ class PubSubIntegrationTest {
         }
     }
 
+    /**
+     * Clears messages from the listener before each test, ensuring a clean state.
+     */
     @BeforeEach
     void clearMessages() {
         pubSubListener.getReceivedMessages().clear();
     }
 
+    /**
+     * Tests the end-to-end Pub/Sub message flow: publish, then receive and verify.
+     */
     @Test
     void testPubSubMessageFlow() {
         String testMessage = "Hello Testcontainers Pub/Sub!";
 
         pubSubService.publishMessage(testMessage);
 
+        // Waits for the message to be received asynchronously.
         await().atMost(10, TimeUnit.SECONDS)
                 .until(() -> !pubSubListener.getReceivedMessages().isEmpty());
 
@@ -129,7 +150,7 @@ class PubSubIntegrationTest {
     }
 
     /**
-     * This initializer dynamically sets Spring Boot properties to connect to the Pub/Sub emulator.
+     * Dynamically sets Spring Boot properties to connect to the Testcontainers Pub/Sub emulator.
      */
     static class PubSubEmulatorInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
         @Override
@@ -137,7 +158,7 @@ class PubSubIntegrationTest {
             TestPropertyValues.of(
                     "spring.cloud.gcp.pubsub.emulator-host=" + pubsubEmulator.getEmulatorEndpoint(),
                     "spring.cloud.gcp.pubsub.project-id=" + PROJECT_ID,
-                    "spring.cloud.gcp.pubsub.credentials.location=classpath:secrets.json" // Placeholder for test credentials
+                    "spring.cloud.gcp.pubsub.credentials.location=classpath:secrets.json"
             ).applyTo(applicationContext.getEnvironment());
         }
     }

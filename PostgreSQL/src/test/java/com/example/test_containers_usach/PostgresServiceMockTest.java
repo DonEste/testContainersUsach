@@ -25,204 +25,213 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 /**
- * This test class focuses on unit testing the ProductService in isolation
- * by mocking its dependency on ProductRepository.
- * It ensures no actual database connection attempts are made.
+ * Unit tests for the {@link ProductService}, isolating it from the database
+ * by mocking its {@link ProductRepository} dependency.
  */
 @SpringBootTest
-// Explicitly define the configuration classes for this test's application context.
-// By doing this, Spring Boot will NOT scan your main application's @SpringBootApplication class,
-// which helps in achieving tighter isolation.
 @ContextConfiguration(classes = PostgresServiceMockTest.TestConfig.class)
-// Disable all auto-configurations related to database connectivity and JPA.
-// This prevents Spring from trying to set up a DataSource, EntityManagerFactory, etc.
+// Excludes auto-configurations related to database setup to prevent actual database connections.
 @EnableAutoConfiguration(exclude = {
-        DataSourceAutoConfiguration.class,
-        HibernateJpaAutoConfiguration.class,
-        JpaRepositoriesAutoConfiguration.class,})
+        DataSourceAutoConfiguration.class, // Prevents DataSource bean creation.
+        HibernateJpaAutoConfiguration.class, // Prevents Hibernate configuration.
+        JpaRepositoriesAutoConfiguration.class, // Prevents Spring Data JPA repository setup.
+})
 class PostgresServiceMockTest {
 
-    // @MockitoBean automatically creates a Mockito mock and registers it as a Spring bean.
-    // This mock will be injected into `productService`.
+    // Replaces the real ProductRepository bean with a Mockito mock.
+    // This allows controlling repository behavior and verifying interactions.
     @MockitoBean
     private ProductRepository productRepository;
 
-    // Autowire the ProductService. It will receive the mocked ProductRepository.
+    // Autowires the ProductService, which will receive the mocked ProductRepository.
     @Autowired
     private ProductService productService;
 
+    /**
+     * Resets the mock before each test to ensure test isolation.
+     */
     @BeforeEach
     void setUp() {
-        // Reset the mock's interactions and stubbing before each test
-        // to ensure test isolation and prevent test leakage.
-        reset(productRepository);
+        reset(productRepository); // Clears any previous stubbings or interaction recordings.
     }
 
+    /**
+     * Tests successful product creation.
+     */
     @Test
     void testCreateProduct_success() {
         Product newProduct = new Product(null, "Mock Laptop", 1200.00);
-        // Simulate the repository returning a saved product with an ID
         Product savedProduct = new Product(1L, "Mock Laptop", 1200.00);
 
-        // Configure the mock behavior: when save is called, return the simulated saved product
+        // Stubs the save method to return a product with an ID.
         when(productRepository.save(any(Product.class))).thenReturn(savedProduct);
 
         Product result = productService.createProduct(newProduct);
 
-        // Verify that the save method was called exactly once with the new product
+        // Verifies that the save method was called exactly once with the new product.
         verify(productRepository, times(1)).save(newProduct);
-        // Ensure no other unexpected interactions with the mock
+        // Ensures no other methods were called on the mock.
         verifyNoMoreInteractions(productRepository);
 
-        // Assert the result from the service
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("Mock Laptop");
         assertThat(result.getPrice()).isEqualTo(1200.00);
     }
 
+    /**
+     * Tests that creating a product with a negative price throws an IllegalArgumentException.
+     */
     @Test
     void testCreateProduct_negativePriceThrowsException() {
         Product newProduct = new Product(null, "Invalid Product", -10.00);
 
-        // Assert that calling createProduct with a negative price throws IllegalArgumentException
+        // Asserts that calling createProduct with a negative price throws the expected exception.
         assertThatThrownBy(() -> productService.createProduct(newProduct))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Product price cannot be negative");
 
-        // Verify that the save method on the repository was NEVER called
+        // Verifies that the save method was never called, as validation should prevent it.
         verify(productRepository, never()).save(any(Product.class));
     }
 
+    /**
+     * Tests retrieving all products.
+     */
     @Test
     void testGetAllProducts_returnsListOfProducts() {
         Product product1 = new Product(1L, "Mock Keyboard", 75.00);
         Product product2 = new Product(2L, "Mock Mouse", 25.00);
         List<Product> mockProducts = Arrays.asList(product1, product2);
 
-        // Configure the mock to return a predefined list of products when findAll is called
+        // Stubs findAll to return a predefined list of products.
         when(productRepository.findAll()).thenReturn(mockProducts);
 
         List<Product> result = productService.getAllProducts();
 
-        // Verify that findAll was called exactly once
+        // Verifies that findAll was called once.
         verify(productRepository, times(1)).findAll();
         verifyNoMoreInteractions(productRepository);
 
-        // Assert the returned list
         assertThat(result).hasSize(2);
         assertThat(result).containsExactlyInAnyOrder(product1, product2);
     }
 
+    /**
+     * Tests retrieving a product by ID when it exists.
+     */
     @Test
     void testGetProductById_found() {
         Long productId = 1L;
         Product mockProduct = new Product(productId, "Mock Monitor", 300.00);
 
-        // Configure the mock to return an Optional containing the product
+        // Stubs findById to return an Optional containing the mock product.
         when(productRepository.findById(productId)).thenReturn(Optional.of(mockProduct));
 
         Optional<Product> result = productService.getProductById(productId);
 
-        // Verify findById was called with the correct ID
+        // Verifies findById was called once.
         verify(productRepository, times(1)).findById(productId);
         verifyNoMoreInteractions(productRepository);
 
-        // Assert the result is present and contains the correct product
         assertThat(result).isPresent();
         assertThat(result.get().getName()).isEqualTo("Mock Monitor");
     }
 
+    /**
+     * Tests retrieving a product by ID when it does not exist.
+     */
     @Test
     void testGetProductById_notFound() {
         Long productId = 99L;
 
-        // Configure the mock to return an empty Optional
+        // Stubs findById to return an empty Optional.
         when(productRepository.findById(productId)).thenReturn(Optional.empty());
 
         Optional<Product> result = productService.getProductById(productId);
 
-        // Verify findById was called
+        // Verifies findById was called once.
         verify(productRepository, times(1)).findById(productId);
         verifyNoMoreInteractions(productRepository);
 
-        // Assert the result is empty
         assertThat(result).isNotPresent();
     }
 
+    /**
+     * Tests successful product update.
+     */
     @Test
     void testUpdateProduct_success() {
         Long productId = 1L;
         Product existingProduct = new Product(productId, "Old Name", 100.00);
-        Product updatedProductDetails = new Product(null, "New Name", 150.00); // ID is ignored in update details
+        Product updatedProductDetails = new Product(null, "New Name", 150.00);
 
-        // Mock finding the existing product
+        // Stubs findById to return the existing product.
         when(productRepository.findById(productId)).thenReturn(Optional.of(existingProduct));
-        // Mock saving the updated product. Use thenAnswer to return the argument passed to save,
-        // simulating the repository returning the saved entity.
+        // Stubs save to return the product passed to it, simulating successful update.
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
             Product productToSave = invocation.getArgument(0);
-            productToSave.setId(productId); // Ensure the ID is maintained after saving by the mock
+            productToSave.setId(productId); // Ensures the ID is retained in the returned object.
             return productToSave;
         });
 
         Product result = productService.updateProduct(productId, updatedProductDetails);
 
-        // Verify findById was called
+        // Verifies findById and save were both called once.
         verify(productRepository, times(1)).findById(productId);
-        // Verify save was called. You can capture arguments for more precise verification if needed.
         verify(productRepository, times(1)).save(any(Product.class));
         verifyNoMoreInteractions(productRepository);
 
-        // Assert the result
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(productId);
         assertThat(result.getName()).isEqualTo("New Name");
         assertThat(result.getPrice()).isEqualTo(150.00);
     }
 
+    /**
+     * Tests that updating a non-existent product throws a RuntimeException.
+     */
     @Test
     void testUpdateProduct_notFoundThrowsException() {
         Long productId = 99L;
         Product updatedProductDetails = new Product(null, "Non-existent", 150.00);
 
-        // Mock not finding the product
+        // Stubs findById to return an empty Optional, simulating not found.
         when(productRepository.findById(productId)).thenReturn(Optional.empty());
 
-        // Expect a RuntimeException when product is not found
+        // Asserts that calling updateProduct for a non-existent ID throws the expected exception.
         assertThatThrownBy(() -> productService.updateProduct(productId, updatedProductDetails))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("Product not found with ID: " + productId);
 
-        // Verify findById was called, but save was NOT called
+        // Verifies findById was called, but save was not.
         verify(productRepository, times(1)).findById(productId);
         verify(productRepository, never()).save(any(Product.class));
     }
 
+    /**
+     * Tests successful product deletion.
+     */
     @Test
     void testDeleteProduct_success() {
         Long productId = 1L;
 
-        // Configure the mock to do nothing when deleteById is called
+        // Stubs deleteById to do nothing when called.
         doNothing().when(productRepository).deleteById(productId);
 
         productService.deleteProduct(productId);
 
-        // Verify that deleteById was called exactly once
+        // Verifies deleteById was called exactly once.
         verify(productRepository, times(1)).deleteById(productId);
         verifyNoMoreInteractions(productRepository);
     }
 
     /**
-     * This nested @Configuration class defines the minimal Spring application context
-     * required for this test.
-     * It ensures that only `ProductService` is loaded into the context.
+     * Minimal Spring context configuration for this unit test.
+     * Only imports {@link ProductService} as {@link ProductRepository} is mocked.
      */
     @Configuration
-    @Import({ProductService.class}) // Only import the ProductService bean.
-    // Its dependencies (like ProductRepository) will be resolved
-    // by @MockitoBean or other beans in this minimal context.
+    @Import({ProductService.class}) // Imports the service to be tested.
     static class TestConfig {
-        // No additional @Bean definitions are needed here for this test's scope.
     }
 }
