@@ -1,6 +1,5 @@
 package com.example;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -12,14 +11,18 @@ import java.util.Optional;
  * Handles CRUD operations and applies business rules.
  */
 @Service
-@RequiredArgsConstructor // Injects ProductRepository via constructor.
 public class ProductService {
 
     @Autowired // This annotation is redundant with @RequiredArgsConstructor on a final field.
     private final ProductRepository productRepository;
 
+    public ProductService(ProductRepository productRepository) {
+        this.productRepository = productRepository;
+    }
+
     /**
      * Creates a new product after applying business validations.
+     *
      * @param product The product to create.
      * @return The created product.
      * @throws IllegalArgumentException if product price is negative.
@@ -33,6 +36,7 @@ public class ProductService {
 
     /**
      * Retrieves all products.
+     *
      * @return A list of all products.
      */
     public List<Product> getAllProducts() {
@@ -41,6 +45,7 @@ public class ProductService {
 
     /**
      * Retrieves a product by its ID.
+     *
      * @param id The ID of the product.
      * @return An Optional containing the product if found, or empty otherwise.
      */
@@ -50,7 +55,8 @@ public class ProductService {
 
     /**
      * Updates an existing product.
-     * @param id The ID of the product to update.
+     *
+     * @param id             The ID of the product to update.
      * @param updatedProduct The product data to apply.
      * @return The updated product.
      * @throws RuntimeException if the product is not found.
@@ -67,6 +73,7 @@ public class ProductService {
 
     /**
      * Deletes a product by its ID.
+     *
      * @param id The ID of the product to delete.
      */
     public void deleteProduct(Long id) {

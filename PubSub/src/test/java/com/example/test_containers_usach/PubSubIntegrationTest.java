@@ -42,7 +42,7 @@ import static org.awaitility.Awaitility.await;
 
 /**
  * **Integration Test** for the Pub/Sub message flow using a **Testcontainers-managed Pub/Sub Emulator**.
- *
+ * <p>
  * This test spins up a real Pub/Sub emulator in a Docker container, configures Spring to connect,
  * and verifies end-to-end message publishing and receiving.
  */

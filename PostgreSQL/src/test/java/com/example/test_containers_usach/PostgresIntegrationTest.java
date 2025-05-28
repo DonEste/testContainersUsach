@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * **Integration Test** for JPA/Hibernate with a **Testcontainers-managed PostgreSQL database**.
- *
+ * <p>
  * This test uses `DataJpaTest` to focus on JPA components (repositories and entities)
  * and `ProductService` by explicitly including it. It ensures that the application's
  * data layer interacts correctly with a real PostgreSQL database instance.

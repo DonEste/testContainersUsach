@@ -54,11 +54,11 @@ This project provides a comprehensive example of building a **Spring Boot** appl
 1.  **Prerequisites**: Ensure **Docker** is installed and running on your machine.
 2.  **Clone the repository**:
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/DonEste/testContainersUsach.git
     ```
 3.  **Navigate to the project directory**:
     ```bash
-    cd spring-boot-gcp-pubsub-testcontainers-example
+    cd testContainersUsach
     ```
 4.  **Build the project and run tests**:
     ```bash

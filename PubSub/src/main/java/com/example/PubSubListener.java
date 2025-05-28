@@ -5,8 +5,6 @@ import com.google.cloud.spring.pubsub.integration.AckMode;
 import com.google.cloud.spring.pubsub.integration.inbound.PubSubInboundChannelAdapter;
 import com.google.cloud.spring.pubsub.support.BasicAcknowledgeablePubsubMessage;
 import com.google.cloud.spring.pubsub.support.GcpPubSubHeaders;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.integration.annotation.ServiceActivator;
@@ -22,12 +20,10 @@ import java.util.concurrent.LinkedBlockingQueue;
  * Handles incoming Pub/Sub messages, integrating with Spring Integration.
  */
 @Component
-@Slf4j // Enables logging for this class.
 public class PubSubListener {
 
     private final String subscriptionName = "example-subscription"; // The Pub/Sub subscription name to listen to.
 
-    @Getter // Allows external access (e.g., tests) to received messages.
     private final BlockingQueue<String> receivedMessages = new LinkedBlockingQueue<>(); // Stores messages as they arrive.
 
 
@@ -37,6 +33,10 @@ public class PubSubListener {
     @Bean
     public MessageChannel pubsubInputChannel() {
         return new DirectChannel(); // A direct channel processes messages synchronously.
+    }
+
+    public BlockingQueue<String> getReceivedMessages() {
+        return receivedMessages;
     }
 
     /**
@@ -57,11 +57,12 @@ public class PubSubListener {
      * Processes messages arriving at `pubsubInputChannel`. Extracts payload, logs, stores, and acknowledges the message.
      */
     @Bean
-    @ServiceActivator(inputChannel = "pubsubInputChannel") // Binds this method to handle messages from 'pubsubInputChannel'.
+    @ServiceActivator(inputChannel = "pubsubInputChannel")
+    // Binds this method to handle messages from 'pubsubInputChannel'.
     public MessageHandler receiveMessage() {
         return message -> {
             String payloadMessage = new String((byte[]) message.getPayload());
-            log.info("Message arrived! Payload: " + payloadMessage);
+            System.out.printf("Message arrived! Payload: %s", payloadMessage);
 
             // Retrieves the original Pub/Sub message to acknowledge it after processing.
             BasicAcknowledgeablePubsubMessage originalMessage =
